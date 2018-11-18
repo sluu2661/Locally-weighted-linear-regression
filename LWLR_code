@@ -1,0 +1,130 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df_train = pd.read_csv('train_data_file_location.csv')
+df_test = pd.read_csv('test_data_file_location.csv')
+
+wavelengths = df_train.columns.values.astype(float).astype(int) #convert column names into integer values
+
+#initial visualization of training data; data contains 200 rows of data
+plt.plot(wavelengths,df_train.iloc[0,:],label='1st', lw=1)
+plt.plot(wavelengths,df_train.iloc[100,:],label='100th', lw=1)
+plt.plot(wavelengths,df_train.iloc[-1,:],label='200th', lw=1)
+plt.plot(wavelengths,np.mean(df_train),label='mean', lw=1)
+plt.legend(loc="upper right") #bbox_to_anchor=(1.04,1), 
+plt.show()
+
+#to apply LWLR, we choose the "weight matrix", W, to a be diagonal matrix with entries w^(i)/2 for each number of training examples
+# loss function is represented as ((X.theta-y).transpose).W.(X.theta-y)
+# the jacobian of this loss function is given by 2(X.transpose)W.(X.theta-y)
+# optimal theta is then given by theta_opt = np.linalg.inv((X.transpose).W.X)(X.transpose)W.y 
+
+# following function calculates the optimal params for either LR or LWR
+def optimal_params(X, y, W=None):
+	if W is None:
+		return np.linalg.inv(np.dot(X.T,X)).dot(X.T).dot(y)
+	else:
+		return np.linalg.inv(X.T.dot(W).dot(X)).dot(X.T).dot(W).dot(y)
+
+# PART B (i); implementing LR on first set of training data
+
+x0 = np.ones((df_train.shape[1]))
+features = wavelengths
+X_first = np.stack([x0,features],axis=1) #stacks/concatenate two 1D arrays via row
+y_first = df_train.iloc[0,:].values
+
+theta_first = optimal_params(X_first,y_first)
+
+plt.plot(features,y_first,label='1st', lw=1)
+plt.plot(features,X_first.dot(theta_first),label='LR' ,lw=1)
+plt.legend(loc="upper right")
+plt.show()
+
+
+
+# PART B (ii); implementing WLR on first set of training data
+
+predictions = []
+tau = 5
+
+for i in range(X_first.shape[0]):
+	w = np.exp(-(X_first[i,1]-X_first[:,1])**2 / (2*tau**2))
+	W = np.diag(w/2)
+	weighted_theta = optimal_params(X_first,y_first,W)
+	predictions.append(np.dot(X_first[i,:],weighted_theta))
+
+plt.plot(features,y_first,label='1st', lw=1)
+plt.plot(features,np.asarray(predictions),label='WLR' ,lw=1)
+plt.legend(loc="upper right")
+plt.show()
+
+# PART B (iii)
+tau_values = [1, 10, 100, 1000]
+predictions2 = []
+	
+for tau in tau_values:
+	WLR_values = []
+	for i in range(X_first.shape[0]):
+		w = np.exp(-(X_first[i,1]-X_first[:,1])**2 / (2*tau**2))
+		W = np.diag(w)
+		weighted_theta = optimal_params(X_first,y_first,W)
+		WLR_values.append(np.dot(X_first[i,:],weighted_theta))
+	predictions2.append(WLR_values)	
+
+#plotting weighted linear regression plots against raw data for each value of tau
+fig, axarr = plt.subplots(2,2, figsize=(12,8))
+
+axarr[0,0].plot(features,y_first,label='1st', lw=1)
+axarr[0,0].plot(features,np.asarray(predictions2[0]), label="WLR with tau = 1", lw=1)	
+axarr[0,0].legend(loc="upper right")
+axarr[0,0].set_title("WLR with tau = 1")
+
+axarr[0,1].plot(features,y_first,label='1st', lw=1)
+axarr[0,1].plot(features,np.asarray(predictions2[1]), label="WLR with tau = 10", lw=1)	
+axarr[0,1].legend(loc="upper right")
+axarr[0,1].set_title("WLR with tau = 10")
+
+axarr[1,0].plot(features,y_first,label='1st', lw=1)
+axarr[1,0].plot(features,np.asarray(predictions2[2]), label="WLR with tau = 100", lw=1)	
+axarr[1,0].legend(loc="upper right")
+axarr[1,0].set_title("WLR with tau = 100")
+
+axarr[1,1].plot(features,y_first,label='1st', lw=1)
+axarr[1,1].plot(features,np.asarray(predictions2[3]), label="WLR with tau = 1000", lw=1)	
+axarr[1,1].legend(loc="upper right")
+axarr[1,1].set_title("WLR with tau = 1000")
+plt.show()
+
+# PART C (i)
+
+#using weighted LR to smooth out each spectra of the training set
+tau = 5 
+
+smoothed_spectra_train = []
+smoothed_spectra_test = []
+
+for j in range(df_train.shape[0]):
+	WLR_values = []
+	for i in range(X_first.shape[0]):
+		w = np.exp(-(X_first[i,1]-X_first[:,1])**2 / (2*tau**2))
+		W = np.diag(w)
+		weighted_theta = optimal_params(X_first,df_train.iloc[j,:].values,W)
+		WLR_values.append(np.dot(X_first[i,:],weighted_theta))
+	smoothed_spectra_train.append(WLR_values)
+	print("Training Spectra {0} smoothed".format(j+1))	
+
+for j in range(df_test.shape[0]):
+	WLR_values = []
+	for i in range(X_first.shape[0]):
+		w = np.exp(-(X_first[i,1]-X_first[:,1])**2 / (2*tau**2))
+		W = np.diag(w)
+		weighted_theta = optimal_params(X_first,df_test.iloc[j,:].values,W)
+		WLR_values.append(np.dot(X_first[i,:],weighted_theta))
+	smoothed_spectra_test.append(WLR_values)
+	print("Test Spectra {0} smoothed".format(j+1))	
+
+#convert smoothed train/test spectra list into arrays
+
+smoothed_spectra_train = np.asarray(smoothed_spectra_train)
+smoothed_spectra_test = np.asarray(smoothed_spectra_test)
